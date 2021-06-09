@@ -3,3 +3,4 @@
 /.vscode/
 /certs/
 /chia-block-sync
+/src/chia-block-sync
