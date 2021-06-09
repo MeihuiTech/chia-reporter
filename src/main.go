@@ -69,11 +69,28 @@ func runCmd(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("error migrate db: %v", err)
 	}
+
+	err = db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='矿工累计出块数量'").AutoMigrate(&ChiaTotalFarmerBlocks{})
+	if err != nil {
+		return fmt.Errorf("error migrate db: %v", err)
+	}
+
+	err = db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='矿工每天出块数量'").AutoMigrate(&ChiaDailyFarmerBlocks{})
+	if err != nil {
+		return fmt.Errorf("error migrate db: %v", err)
+	}
+
+	err = db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='区块同步高度'").AutoMigrate(&ChiaBlockSyncHeight{})
+	if err != nil {
+		return fmt.Errorf("error migrate db: %v", err)
+	}
+
 	host := viper.GetString("rpc_host")
 	port := viper.GetUint("rpc_port")
 	privateCert := viper.GetString("private_cert")
 	privateKey := viper.GetString("private_key")
 	caCert := viper.GetString("ca_cert")
+	syncBlocks := viper.GetBool("sync_blocks")
 
 	if host == "" {
 		return fmt.Errorf("error config: rpc_host can not be empty")
@@ -95,7 +112,7 @@ func runCmd(ctx *cli.Context) error {
 	signalChannel := make(chan os.Signal)
 	defer close(signalChannel)
 	defer close(syncChannel)
-	go SyncBlocks(context.Background(), syncChannel, host, port, privateCert, privateKey, caCert, db)
+	go SyncBlocks(context.Background(), syncChannel, host, port, privateCert, privateKey, caCert, syncBlocks, db)
 
 	signal.Notify(signalChannel, os.Interrupt)
 	select {

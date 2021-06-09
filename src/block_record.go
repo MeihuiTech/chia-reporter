@@ -124,25 +124,29 @@ func RpcClient(certFile string, keyFile string, caFile string) (*http.Client, er
 	return client, nil
 }
 
-func GetSyncedHeight(db *gorm.DB) (int64, error)  {
-	var block ChiaBlockRecord
-	r := db.Last(&block)
+func GetSyncedHeight(db *gorm.DB) (*ChiaBlockSyncHeight, error)  {
+	var blockHeight ChiaBlockSyncHeight
+	r := db.Last(&blockHeight)
 	if r.Error == nil {
-		return int64(block.Height), nil
+		return &blockHeight, nil
 	} else if errors.Is(r.Error, gorm.ErrRecordNotFound){
-		return -1, nil
+		return nil, nil
 	} else {
-		return -1, fmt.Errorf("error get latest block: %v", r.Error)
+		return nil, fmt.Errorf("error get latest block: %v", r.Error)
 	}
 }
 
-func SyncBlocks(ctx context.Context, channel chan int, host string, port uint, privateCert string, privateKey string, caCert string, db *gorm.DB) {
+func SyncBlocks(ctx context.Context, channel chan int, host string, port uint, privateCert string, privateKey string, caCert string, syncBlocks bool, db *gorm.DB) {
 
-	currentHeight, err := GetSyncedHeight(db)
+	blockHeight, err := GetSyncedHeight(db)
 	if err != nil {
 		return
 	}
-	start := uint64(currentHeight + 1)
+	start := uint64(0)
+	if blockHeight != nil {
+		start = start + blockHeight.Height + 1
+	}
+
 	client, err := RpcClient(privateCert, privateKey, caCert)
 	if err == nil {
 		batch := uint64(10)
@@ -154,29 +158,49 @@ func SyncBlocks(ctx context.Context, channel chan int, host string, port uint, p
 			if err != nil {
 				fmt.Printf("error GetBlockRecords: %v", err)
 			} else if len(result.BlockRecords) > 0 {
-				for index, block := range result.BlockRecords{
-					farmerAddress, err := EncodePuzzleHash(block.FarmerPuzzleHash, "xch")
-					if err == nil {
-						result.BlockRecords[index].FarmerAddress = farmerAddress
-					} else {
-						fmt.Printf("error encode farmer puzzle hash:%v \r\n", err)
+				// begin Transaction
+				err = db.Transaction(func(tx *gorm.DB) error {
+					for index, block := range result.BlockRecords{
+						farmerAddress, err := EncodePuzzleHash(block.FarmerPuzzleHash, "xch")
+						if err == nil {
+							err = IncreaseTotalBlock(farmerAddress, tx)
+							if err != nil {
+								return fmt.Errorf("error increase total blocks")
+							}
+							err = IncreaseDailyBlock(farmerAddress, block.Height, tx)
+							if err != nil {
+								return fmt.Errorf("error calculate daily blocks")
+							}
+							if syncBlocks {
+								result.BlockRecords[index].FarmerAddress = farmerAddress
+								poolAddress, err := EncodePuzzleHash(block.FarmerPuzzleHash, "xch")
+								if err == nil {
+									result.BlockRecords[index].PoolAddress = poolAddress
+								} else {
+									fmt.Printf("error encode pool puzzle hash:%v \r\n", err)
+								}
+								result.BlockRecords[index].IsTransactionBlock = block.BlockTimestamp != 0
+							}
+						} else {
+							return fmt.Errorf("error encode farmer puzzle hash:%v \r\n", err)
+						}
 					}
-
-					poolAddress, err := EncodePuzzleHash(block.FarmerPuzzleHash, "xch")
-					if err == nil {
-						result.BlockRecords[index].PoolAddress = poolAddress
-					} else {
-						fmt.Printf("error encode pool puzzle hash:%v \r\n", err)
+					if syncBlocks {
+						tx.Create(&result.BlockRecords)
 					}
-					result.BlockRecords[index].IsTransactionBlock = block.BlockTimestamp != 0
-				}
-				db.Create(&result.BlockRecords)
+					length := uint64(len(result.BlockRecords))
+					err = LogSyncHeight(start + length - 1 ,tx)
+					if err == nil {
+						start += length
+					} else {
+						return fmt.Errorf("error log sync height: %v", err)
+					}
+					return nil
+				})
 				if len(result.BlockRecords) < 10 {
-					start += uint64(len(result.BlockRecords))
 					time.Sleep(time.Duration(interval) * time.Second)
-				} else {
-					start += batch
 				}
+
 			} else {
 				time.Sleep(time.Duration(interval) * time.Second)
 			}
