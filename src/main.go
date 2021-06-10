@@ -8,17 +8,19 @@ import (
 	"github.com/urfave/cli"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
+	"time"
 )
 
 var vRunCmd = cli.Command{
 	Name: "run",
 	Flags: []cli.Flag{
 		cli.StringFlag{
-			Name: "config",
+			Name:  "config",
 			Value: "",
 			Usage: "set config file(json format)",
 		},
@@ -42,10 +44,10 @@ func runCmd(ctx *cli.Context) error {
 			}
 		}
 	} else {
-		viper.SetConfigName("config") // name of config file (without extension)
-		viper.AddConfigPath("/etc/chia-block-sync/")   // path to look for the config file in
-		viper.AddConfigPath("$HOME/.chia-block-sync")  // call multiple times to add many search paths
-		viper.AddConfigPath(".")               // optionally look for config in the working directory
+		viper.SetConfigName("config")                 // name of config file (without extension)
+		viper.AddConfigPath("/etc/chia-block-sync/")  // path to look for the config file in
+		viper.AddConfigPath("$HOME/.chia-block-sync") // call multiple times to add many search paths
+		viper.AddConfigPath(".")                      // optionally look for config in the working directory
 		if err := viper.ReadInConfig(); err != nil {
 			if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 				panic(fmt.Errorf("Config file not found \n"))
@@ -55,12 +57,25 @@ func runCmd(ctx *cli.Context) error {
 		}
 	}
 
+	IgnoreRecordNotFoundError := viper.GetBool("ignore_gorm_not_found_error")
+
+	gormLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+		logger.Config{
+			SlowThreshold:             time.Second,               // Slow SQL threshold
+			LogLevel:                  logger.Warn,               // Log level
+			IgnoreRecordNotFoundError: IgnoreRecordNotFoundError, // Ignore ErrRecordNotFound error for logger
+			Colorful:                  false,                     // Disable color
+		},
+	)
 
 	dsn := viper.GetString("dsn")
 	if dsn == "" {
 		return fmt.Errorf("error config: dsn can not be empty")
 	}
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		Logger: gormLogger,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to open db connection: %v \n", err)
 	}
