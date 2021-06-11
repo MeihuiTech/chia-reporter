@@ -2,5 +2,5 @@
 /.idea/
 /.vscode/
 /certs/
-/chia-block-sync
-/src/chia-block-sync
+/chia-reporter
+/src/chia-reporter

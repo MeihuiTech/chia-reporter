@@ -1,8 +1,8 @@
 version: '2'
 services:
-  chia_sync:
-    image: chia-block-sync:0.1
-    container_name: chia_block_sync
+  chia_reporter:
+    image: chia-reporter
+    container_name: chia-report
     volumes:
       - ./certs:/go/src/app/certs
       - ./config.json:/go/src/app/config.json

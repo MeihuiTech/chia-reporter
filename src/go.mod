@@ -1,4 +1,4 @@
-module chia-block-sync
+module chia-reporter
 
 go 1.16
 

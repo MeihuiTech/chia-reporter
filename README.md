@@ -6,9 +6,9 @@ mysql 5.7 above
 ### Run with docker
 
 ```
-docker build -t chia-block-sync:VERSION .
+docker build -t chia-reporter:VERSION .
 
-docker run -ti --name chia-block-sync -v $PATH_TO_CONFIG/config.json:/go/src/app/config.json $PATH_TO_CERTS:/go/src/app/certs chia-block-sync:VERSION
+docker run -ti --name chia-reporter -v $PATH_TO_CONFIG/config.json:/go/src/app/config.json $PATH_TO_CERTS:/go/src/app/certs chia-reporter:VERSION
 ```
 
 ### Configuration

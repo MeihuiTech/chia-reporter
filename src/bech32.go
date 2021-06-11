@@ -9,7 +9,7 @@ import (
 const charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 const M = 0x2BC830A3
 
-var gen = []int{0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3}
+var gen = []int{0x3B6A57B2, 0x26508E6D, 0x1EA119FA, 0x3D4233DD, 0x2A1462B3}
 
 // Decode decodes a bech32 encoded string, returning the human-readable
 // part and the data part excluding the checksum.
@@ -247,7 +247,7 @@ func bech32VerifyChecksum(hrp string, data []byte) bool {
 		integers[i] = int(b)
 	}
 	concat := append(bech32HrpExpand(hrp), integers...)
-	return bech32Polymod(concat) == 1
+	return bech32Polymod(concat) == M
 }
 
 func EncodePuzzleHash(puzzle, prefix string) (string, error) {
